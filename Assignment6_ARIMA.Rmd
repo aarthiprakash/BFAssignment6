@@ -1,0 +1,129 @@
+---
+title: "Assignment6_ARIMA"
+author: "Aarthi Prakash"
+date: "2023-11-19"
+output: html_document
+---
+
+```{r}
+
+#Creating Time series from data points
+library(fpp)
+library(fpp2)
+
+#Import Updated Data
+TotalRevenueForHospitalsData <- read.csv("~/Documents/Rutgers MBA 2022/Fall 2023/[0] Business Forecasting/Week 3/Assignment3/TotalRevenueForHospitalsData.csv", header=FALSE)
+#View(TotalRevenueForHospitalsData)
+
+TotalRevenueForHospitalsData = TotalRevenueForHospitalsData[-1,]
+TotalRevenueForHospitalsData$V2 <- as.numeric(TotalRevenueForHospitalsData$V2)
+#colnames(TotalRevenueForHospitalsData) <- ('Date','TotalRevenue')
+str(TotalRevenueForHospitalsData)
+
+HospitalRevenue_ts <- ts(TotalRevenueForHospitalsData$V2, frequency = 4, start = c(2004,4))
+HospitalRevenue_ts
+
+#General Time Series Traits
+attributes(HospitalRevenue_ts)
+plot(HospitalRevenue_ts)
+Acf(HospitalRevenue_ts)
+
+plot(decompose(HospitalRevenue_ts)) #There is trend and seasonality (subtle)
+
+#Plot Time Series for Hospital Revenue Data
+plot(HospitalRevenue_ts,type='l')
+
+# There are test to tell you if series is stationary
+# ADF test says differences is required if p-value is > 0.05
+adf.test(HospitalRevenue_ts)
+
+#adf test has p-value of 0.9569 --> series is not stationary as is and differences are required
+
+# Kipps test says differences is required if p-value is < 0.05
+kpss.test(HospitalRevenue_ts)
+
+#Kipps test has p-value smaller than 0.01 which says series is not stationary as is and differences are required
+
+# There is also a function to tell you how much differences you need to do!
+# NSDIFFS only works for seasonal data - this returns 0 - no differences required for ARIMA
+nsdiffs(HospitalRevenue_ts)
+
+# However NDIFFS works with non-seasonal data - this returns 1
+ndiffs(HospitalRevenue_ts)
+
+#ndiffs is returning as 1 but the data has seasonality based on the decompose function
+
+#tsdisplay plots ACF,PACF and timeseries plot together.
+tsdisplay(HospitalRevenue_ts)
+
+# Principle of Parsimony says choose one with the least number of parameters
+# You can also be lazy and just call auto.arima and let it do the work for you.
+auto.arima(HospitalRevenue_ts)
+
+#auto.arima shows: 
+#Series: HospitalRevenue_ts 
+#ARIMA(2,1,0)(1,0,0)[4] with drift 
+
+#Coefficients:
+#  ar1      ar2     sar1      drift
+#0.0394  -0.7072  -0.6267  2728.4161
+#s.e.  0.0832   0.0881   0.1049   206.5745
+
+#sigma^2 = 22940233:  log likelihood = -731.18
+#AIC=1472.37   AICc=1473.25   BIC=1483.89
+
+
+#p = 2 so use past 2 values
+#q = 1 use 1 level of differencing
+#r = 0 no residual values
+#P = 1 which shows to use last 2 seasonality
+
+
+# or save the model. BIC and AIC is also given as values. AUTOMATIC ARIMA spits out the answer
+auto_fit <- auto.arima(HospitalRevenue_ts,trace=TRUE,stepwise=FALSE,approximation=FALSE)
+auto_fit
+
+#ARIMA(2,1,0)(1,0,0)[4] with drift is the best model which has a BIC value of 1473.249
+
+
+#Analyze auto_fit details
+auto_fit #sigma is telling you the standard error that you are this many years off
+Acf(auto_fit$residuals) #shows 1 significant line at lag 9
+plot.ts(residuals(auto_fit))
+hist(auto_fit$residuals) #residuals are kind of normally distributed but is slightly skewed right
+tsdiag(auto_fit)
+
+
+# Arima and arima are similar except arima does not allow for the constant c
+# unless d=0, and it does not return everything required for the forecast()
+# function. Finally, it does not allow the estimated model to be applied
+# to new data (which is useful for checking forecast accuracy).
+# Consequently, it is recommended that you use Arima() instead
+# Lets call forecast. You can pass the confidence interval
+arima_forecast <- forecast(auto_fit,h=5,level=c(99.5))
+
+# or use defaults.
+arima_forecast <- forecast(auto_fit,h=5)
+
+# Or Plot it to see how it looks. Increase h and plot it.
+plot(arima_forecast)
+
+# We are not finished till we do some residual analysis
+#ACF plot, Box Ljung test and histogram and Timeseries plot
+Acf(auto_fit$residuals)
+Box.test(residuals(auto_fit), lag=20, type="Ljung") #box test returns p-value of 0.6106
+plot.ts(residuals(auto_fit))
+hist(auto_fit$residuals)
+
+# Or do all the plots in one!
+tsdiag(auto_fit)
+
+accuracy(arima_forecast) #accuracy shows MAPE of 1.239565 which is pretty low
+
+
+#ARIMA said to use 1 difference
+hospitaltimeseriesdiff1 <- diff(HospitalRevenue_ts, differences=1)
+plot(hospitaltimeseriesdiff1)
+tsdisplay(hospitaltimeseriesdiff1)
+
+```
